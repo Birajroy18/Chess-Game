@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game - Welcome</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        .choice-card {
+            transition: all 0.3s ease;
+        }
+        .choice-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="w-full h-screen flex items-center justify-center bg-zinc-900">
+        <div class="text-center">
+            <h1 class="text-6xl font-bold text-white mb-8">♔ Chess Game ♔</h1>
+            <p class="text-xl text-gray-300 mb-12">Choose how you want to join the game</p>
+            
+            <div class="flex gap-8 justify-center">
+                <div class="choice-card bg-gray-700 p-8 rounded-lg cursor-pointer w-64 h-48 flex flex-col items-center justify-center" onclick="joinAsPlayer()">
+                    <div class="text-6xl mb-4"></div>
+                    <h2 class="text-2xl font-bold text-white mb-2">Join as Player</h2>
+                    <p class="text-blue-100 text-center">Play chess against another player</p> 
+                </div>
+                
+                <div class="choice-card bg-gray-700 p-8 rounded-lg cursor-pointer w-64 h-48 flex flex-col items-center justify-center" onclick="joinAsSpectator()">
+                    <div class="text-6xl mb-4"></div>
+                    <h2 class="text-2xl font-bold text-white mb-2">Join as Spectator</h2>
+                    <p class="text-purple-100 text-center">Watch ongoing games</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function joinAsPlayer() {
+            window.location.href = '/game?role=player';
+        }
+        
+        function joinAsSpectator() {
+            window.location.href = '/game?role=spectator';
+        }
+    </script>
+</body>
+
+</html>

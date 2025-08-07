@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            grid-template-rows: repeat(8, minmax(0, 1fr));
+            width: 600px;
+            height: 600px;
+            transform: rotate(0deg);
+        }   
+        .piece.white {
+            color: white;
+            filter: drop-shadow(0 0 2px rgba(0, 0, 0, 1));
+        }
+        .piece.black {
+            color: black;
+        }
+        .flipped {
+            transform: rotate(180deg);
+        }
+        .square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .square.light {
+            background-color: #f0d9b5;
+        }
+        .square.dark {
+            background-color: #b58863;
+        }
+        .piece {
+            font-size: 54px;
+            cursor: pointer;
+        }
+        .piece.draggable {
+            cursor: grab;
+        }
+        .dragging {
+            opacity: 0.5;
+        }
+        .flipped .piece {
+            transform: rotate(180deg);
+        }
+        .status-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 14px;
+            animation: fadeInOut 3s ease-in-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+            10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        }
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
+        /* THEME STYLES */
+        .theme-default {
+            background-image: url('/assets/historic.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .theme-scifi {
+            background-image: url('/assets/sci-fi.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .theme-matrix {
+            background-image: url('/assets/matrix.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .theme-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            background: #222;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.7rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .theme-btn:hover {
+            background: #444;
+        }
+        .theme-dropdown {
+            position: fixed;
+            top: 75px;
+            right: 20px;
+            z-index: 1002;
+            background: #222;
+            color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            padding: 0.5rem 0;
+            min-width: 140px;
+            display: none;
+        }
+        .theme-dropdown.active {
+            display: block;
+        }
+        .theme-dropdown button {
+            background: none;
+            border: none;
+            color: #fff;
+            width: 100%;
+            text-align: left;
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .theme-dropdown button:hover {
+            background: #333;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="back-button">
+        <button onclick="goBack()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors">
+            ← Back to Menu
+        </button>
+    </div>
+    <!-- THEME BUTTON -->
+    <button class="theme-btn" id="themeBtn" title="Change Theme">
+        <span>🎨</span>
+    </button>
+    <div class="theme-dropdown" id="themeDropdown">
+        <button onclick="setTheme('Default')">Default</button>
+        <button onclick="setTheme('scifi')">Sci-Fi</button>
+        <button onclick="setTheme('matrix')">Matrix</button>
+    </div>
+    <div id="mainBg" class="w-full h-screen flex items-center justify-center bg-zinc-900 theme-default">
+        <div class="text-center">
+            <div id="statusMessage" class="status-message hidden"></div>
+            <div id="gameContainer" class="hidden">
+                <div class="chessboard w-[600px] h-[600px] bg-red-800"></div>
+            </div>
+            <div id="waitingMessage" class="hidden">
+                <div class="text-center">
+                    <div class="text-6xl mb-4">⏳</div>
+                    <h2 class="text-3xl font-bold text-white mb-4">Waiting for Opponent</h2>
+                    <p class="text-xl text-gray-300">Please wait for another player to join the game...</p>
+                </div>
+            </div>
+            <div id="noGameMessage" class="hidden">
+                <div class="text-center">
+                    <div class="text-6xl mb-4">🏁</div>
+                    <h2 class="text-3xl font-bold text-white mb-4">No Active Games</h2>
+                    <p class="text-xl text-gray-300">There are currently no games to spectate.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"
+        integrity="sha512-xRllwz2gdZciIB+AkEbeq+gVhX8VB8XsfqeFbUh+SzHlN96dEduwtTuVuc2u9EROlmW9+yhRlxjif66ORpsgVA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="/js/chessgame.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const role = urlParams.get('role');
+        function goBack() {
+            window.location.href = '/';
+        }
+        // THEME SWITCHER
+        const themeBtn = document.getElementById('themeBtn');
+        const themeDropdown = document.getElementById('themeDropdown');
+        const mainBg = document.getElementById('mainBg');
+        let currentTheme = sessionStorage.getItem('chessTheme') || 'default';
+        function setTheme(theme) {
+            mainBg.classList.remove('theme-default', 'theme-scifi', 'theme-matrix');
+            if (theme === 'Default') mainBg.classList.add('theme-default');
+            if (theme === 'scifi') mainBg.classList.add('theme-scifi');
+            if (theme === 'matrix') mainBg.classList.add('theme-matrix');
+            currentTheme = theme.toLowerCase();
+            sessionStorage.setItem('chessTheme', currentTheme);
+            themeDropdown.classList.remove('active');
+        }
+        themeBtn.onclick = () => {
+            themeDropdown.classList.toggle('active');
+        };
+        document.addEventListener('click', (e) => {
+            if (!themeBtn.contains(e.target) && !themeDropdown.contains(e.target)) {
+                themeDropdown.classList.remove('active');
+            }
+        });
+        setTheme(currentTheme);
+        // END THEME SWITCHER
+        function showStatusMessage(message, type = 'info') {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${type === 'error' ? 'bg-red-500' : 'bg-blue-400'} text-white`;
+            statusDiv.classList.remove('hidden');
+            setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, 2500);
+        }
+        function showWaitingMessage() {
+            document.getElementById('gameContainer').classList.add('hidden');
+            document.getElementById('noGameMessage').classList.add('hidden');
+            document.getElementById('waitingMessage').classList.remove('hidden');
+        }
+        function showNoGameMessage() {
+            document.getElementById('gameContainer').classList.add('hidden');
+            document.getElementById('waitingMessage').classList.add('hidden');
+            document.getElementById('noGameMessage').classList.remove('hidden');
+        }
+        function showGame() {
+            document.getElementById('waitingMessage').classList.add('hidden');
+            document.getElementById('noGameMessage').classList.add('hidden');
+            document.getElementById('gameContainer').classList.remove('hidden');
+        }
+        // Make functions globally available
+        window.showStatusMessage = showStatusMessage;
+        window.showWaitingMessage = showWaitingMessage;
+        window.showNoGameMessage = showNoGameMessage;
+        window.showGame = showGame;
+        // Initialize based on role
+        if (role === 'player') {
+            showWaitingMessage();
+            showStatusMessage('Joining as player...', 'info');
+            socket.emit('joinAsPlayer');
+        } else if (role === 'spectator') {
+            showStatusMessage('Joining as spectator...', 'info');
+            socket.emit('joinAsSpectator');
+        }
+    </script>
+</body>
+
+</html>
