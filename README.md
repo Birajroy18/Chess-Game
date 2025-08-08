@@ -16,6 +16,3 @@ This project allows users to **choose how to join a game** (play online with fri
 - ♟ Future-ready structure for integrating actual chess logic.
 
 ---
-
-## 📂 Project Structure
-
