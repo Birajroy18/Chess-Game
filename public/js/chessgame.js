@@ -28,28 +28,13 @@ const renderBoard = () => {
                 pieceElement.classList.add("piece", square.color === 'w' ? "white" : "black");
 
                 pieceElement.innerText = getPieceUnicode(square);
-                pieceElement.draggable = playerRole === square.color && chess.turn() === playerRole && !isTouchDevice;
+                // Disable drag-and-drop entirely to avoid overlap with click/tap
+                pieceElement.draggable = false;
                 pieceElement.dataset.row = rowindex;
                 pieceElement.dataset.col = squareindex;
                 
-                // Desktop drag and drop
+                // Desktop click-to-select only
                 if (!isTouchDevice) {
-                    pieceElement.addEventListener("dragstart", (e) => {
-                        if (pieceElement.draggable) {
-                            console.log("Drag started for piece at:", rowindex, squareindex);
-                            draggedPiece = pieceElement;
-                            sourceSquare = { row: rowindex, col: squareindex };
-                            e.dataTransfer.setData("text/plain", "");
-                            pieceElement.classList.add("dragging");
-                        }
-                    });
-                    pieceElement.addEventListener("dragend", (e) => {
-                        console.log("Drag ended");
-                        draggedPiece = null;
-                        sourceSquare = null;
-                        pieceElement.classList.remove("dragging");
-                    });
-                    // Click-to-select for desktop
                     pieceElement.addEventListener("click", (e) => {
                         e.preventDefault();
                         handleTouchStart(rowindex, squareindex, pieceElement);
@@ -67,25 +52,8 @@ const renderBoard = () => {
                 squareElement.appendChild(pieceElement);
             }
 
-            // Desktop drop handling
+            // Desktop click-to-move using highlighted squares
             if (!isTouchDevice) {
-                squareElement.addEventListener("dragover", function (e) {
-                    e.preventDefault();
-                });
-                squareElement.addEventListener("drop", function (e) {
-                    e.preventDefault();
-                    console.log("Drop event triggered");
-                    if (draggedPiece) {
-                        const targetSource = {
-                            row: parseInt(squareElement.dataset.row),
-                            col: parseInt(squareElement.dataset.col),
-                        };
-
-                        console.log("Dropping from", sourceSquare, "to", targetSource);
-                        handleMove(sourceSquare, targetSource);
-                    }
-                });
-                // Click-to-move using highlighted squares on desktop
                 squareElement.addEventListener("click", (e) => {
                     e.preventDefault();
                     handleSquareTouch(rowindex, squareindex, squareElement);
