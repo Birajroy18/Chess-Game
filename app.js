@@ -93,7 +93,11 @@ io.on("connection",function (uniquesocket){
                         return;
                     }
                 }
-                uniquesocket.emit('noActiveGame', true);
+                if (roomId && roomId !== 'random') {
+                    uniquesocket.emit('roomClosed', { roomId });
+                } else {
+                    uniquesocket.emit('noActiveGame', true);
+                }
                 return;
             }
         }
@@ -145,6 +149,9 @@ io.on("connection",function (uniquesocket){
                 if (opponentId) {
                     io.to(opponentId).emit('opponentLeft', { roomId });
                 }
+                // Close room and notify remaining members
+                io.to(roomId).emit('roomClosed', { roomId });
+                delete rooms[roomId];
             }
             if (room.players.black === uniquesocket.id) {
                 const opponentId = room.players.white;
@@ -158,9 +165,10 @@ io.on("connection",function (uniquesocket){
             const idx = room.spectators.indexOf(uniquesocket.id);
             if (idx > -1) room.spectators.splice(idx, 1);
 
-            if (!room.gameActive) {
-                room.spectators.forEach(specId => io.to(specId).emit('noActiveGame', true));
-                console.log(`[room] Room ${roomId} no longer active`);
+            if (rooms[roomId] && !room.gameActive && !room.players.white && !room.players.black) {
+                room.spectators.forEach(specId => io.to(specId).emit('roomClosed', { roomId }));
+                console.log(`[room] Room ${roomId} no longer active, deleting`);
+                delete rooms[roomId];
             }
         }
         if (randomQueue === uniquesocket.id) {
