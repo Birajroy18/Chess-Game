@@ -9,12 +9,20 @@ const server = http.createServer(app);
 
 const io = socket(server);
 
-const chess = new Chess();
+// Room management
+const rooms = {}; // roomId -> { chess, players: {white, black}, spectators: [], gameActive: boolean }
+let randomQueue = null; // store pending socket id waiting for random match
 
-let players = {};
-let spectators = [];
-let gameActive = false;
-let CurrentPlayer = "w";
+function createRoom() {
+    const roomId = Math.random().toString(36).slice(2, 10);
+    rooms[roomId] = {
+        chess: new Chess(),
+        players: {},
+        spectators: [],
+        gameActive: false,
+    };
+    return roomId;
+}
 
 app.set("view engine","ejs");
 app.use(express.static(path.join(__dirname,"public")));
@@ -28,109 +36,162 @@ app.get("/game", (req,res) =>{
     res.render("game",{title:"Chess Game"});
 });
 
+// Create a room via HTTP for convenience (used by host flow)
+app.get('/create-room', (req, res) => {
+    const roomId = createRoom();
+    res.json({ roomId });
+});
+
 io.on("connection",function (uniquesocket){
     console.log("connected");
     
-    // Wait for client to specify their role
-    uniquesocket.on("joinAsPlayer", function() {
-        console.log("Client wants to join as player");
-        
-        if (!players.white) {
-            // First player joins
-            players.white = uniquesocket.id;
-            uniquesocket.emit("playerRole", "w");
-            uniquesocket.emit("waitingForOpponent", true);
-            console.log("White player joined, waiting for opponent");
-        } else if (!players.black) {
-            // Second player joins
-            players.black = uniquesocket.id;
-            uniquesocket.emit("playerRole", "b");
-            gameActive = true;
-            
-            // Notify both players that game can start
-            io.to(players.white).emit("gameStart", true);
-            io.to(players.black).emit("gameStart", true);
-            
-            // Notify all spectators that game is active
-            spectators.forEach(specId => {
-                io.to(specId).emit("gameActive", true);
-            });
-            
-            console.log("Black player joined, game started");
-        } else {
-            // Both player slots are full, add as spectator
-            spectators.push(uniquesocket.id);
-            uniquesocket.emit("spectatorRole");
-            
-            if (gameActive) {
-                uniquesocket.emit("gameActive", true);
+    // Room-based join
+    uniquesocket.on('joinRoom', ({ roomId, as }) => {
+        if (!roomId || !rooms[roomId]) {
+            // Auto-create if host without room
+            if (as === 'host') {
+                roomId = createRoom();
             } else {
-                uniquesocket.emit("noActiveGame", true);
+                // Handle random matchmaking
+                if (roomId === 'random' && as === 'player') {
+                    if (!randomQueue) {
+                        randomQueue = uniquesocket.id;
+                        // Create a provisional room and assign as white
+                        const newRoomId = createRoom();
+                        const room = rooms[newRoomId];
+                        uniquesocket.join(newRoomId);
+                        room.players.white = uniquesocket.id;
+                        uniquesocket.emit('playerRole', 'w');
+                        uniquesocket.emit('waitingForOpponent', true);
+                        uniquesocket.emit('joinedRoom', { roomId: newRoomId });
+                        return;
+                    } else {
+                        // Pair with waiting player
+                        const newRoomId = Object.entries(rooms).find(([id, r]) => r.players.white === randomQueue && !r.players.black)?.[0];
+                        if (!newRoomId) {
+                            // Fallback: create a new room if something went wrong
+                            const fallbackId = createRoom();
+                            const room = rooms[fallbackId];
+                            uniquesocket.join(fallbackId);
+                            room.players.black = uniquesocket.id;
+                            uniquesocket.emit('playerRole', 'b');
+                            room.gameActive = true;
+                            io.to(fallbackId).emit('gameStart', true);
+                            uniquesocket.emit('joinedRoom', { roomId: fallbackId });
+                        } else {
+                            const room = rooms[newRoomId];
+                            uniquesocket.join(newRoomId);
+                            room.players.black = uniquesocket.id;
+                            uniquesocket.emit('playerRole', 'b');
+                            room.gameActive = true;
+                            io.to(room.players.white).emit('gameStart', true);
+                            io.to(room.players.black).emit('gameStart', true);
+                            io.to(newRoomId).emit('boardState', room.chess.fen());
+                            io.to(newRoomId).emit('joinedRoom', { roomId: newRoomId });
+                        }
+                        randomQueue = null;
+                        return;
+                    }
+                }
+                uniquesocket.emit('noActiveGame', true);
+                return;
             }
-            console.log("Player slot full, joined as spectator");
         }
-    });
-    
-    uniquesocket.on("joinAsSpectator", function() {
-        console.log("Client wants to join as spectator");
-        
-        spectators.push(uniquesocket.id);
-        uniquesocket.emit("spectatorRole");
-        
-        if (gameActive) {
-            uniquesocket.emit("gameActive", true);
-            console.log("Spectator joined active game");
+
+        const room = rooms[roomId];
+        uniquesocket.join(roomId);
+
+        if (as === 'host') {
+            if (!room.players.white) {
+                room.players.white = uniquesocket.id;
+                uniquesocket.emit('playerRole', 'w');
+                uniquesocket.emit('waitingForOpponent', true);
+            } else {
+                uniquesocket.emit('spectatorRole');
+            }
+        } else if (as === 'player') {
+            if (!room.players.black) {
+                room.players.black = uniquesocket.id;
+                uniquesocket.emit('playerRole', 'b');
+                room.gameActive = true;
+                io.to(room.players.white).emit('gameStart', true);
+                io.to(room.players.black).emit('gameStart', true);
+                room.spectators.forEach(specId => io.to(specId).emit('gameActive', true));
+            } else {
+                // slot filled, become spectator
+                room.spectators.push(uniquesocket.id);
+                uniquesocket.emit('spectatorRole');
+                if (room.gameActive) uniquesocket.emit('gameActive', true); else uniquesocket.emit('noActiveGame', true);
+            }
         } else {
-            uniquesocket.emit("noActiveGame", true);
-            console.log("Spectator joined, no active game");
+            room.spectators.push(uniquesocket.id);
+            uniquesocket.emit('spectatorRole');
+            if (room.gameActive) uniquesocket.emit('gameActive', true); else uniquesocket.emit('noActiveGame', true);
         }
+
+        // Send current board state to anyone joining
+        uniquesocket.emit('boardState', room.chess.fen());
+        uniquesocket.emit('joinedRoom', { roomId });
     });
 
     uniquesocket.on("disconnect",function(){
-        if(uniquesocket.id === players.white){
-            delete players.white;
-            gameActive = false;
-            console.log("White player disconnected");
-        } else if(uniquesocket.id === players.black){
-            delete players.black;
-            gameActive = false;
-            console.log("Black player disconnected");
-        } else {
-            // Remove from spectators
-            const specIndex = spectators.indexOf(uniquesocket.id);
-            if (specIndex > -1) {
-                spectators.splice(specIndex, 1);
+        // Clean up from any rooms this socket was in
+        for (const [roomId, room] of Object.entries(rooms)) {
+            if (room.players.white === uniquesocket.id) {
+                const opponentId = room.players.black;
+                delete room.players.white;
+                room.gameActive = false;
+                console.log(`[disconnect] White player left room ${roomId}: ${uniquesocket.id}`);
+                if (opponentId) {
+                    io.to(opponentId).emit('opponentLeft', { roomId });
+                }
+            }
+            if (room.players.black === uniquesocket.id) {
+                const opponentId = room.players.white;
+                delete room.players.black;
+                room.gameActive = false;
+                console.log(`[disconnect] Black player left room ${roomId}: ${uniquesocket.id}`);
+                if (opponentId) {
+                    io.to(opponentId).emit('opponentLeft', { roomId });
+                }
+            }
+            const idx = room.spectators.indexOf(uniquesocket.id);
+            if (idx > -1) room.spectators.splice(idx, 1);
+
+            if (!room.gameActive) {
+                room.spectators.forEach(specId => io.to(specId).emit('noActiveGame', true));
+                console.log(`[room] Room ${roomId} no longer active`);
             }
         }
-        
-        // If game is no longer active, notify remaining spectators
-        if (!gameActive) {
-            spectators.forEach(specId => {
-                io.to(specId).emit("noActiveGame", true);
-            });
+        if (randomQueue === uniquesocket.id) {
+            randomQueue = null;
+            console.log(`[queue] Cleared random queue; disconnected socket ${uniquesocket.id}`);
         }
     });
 
         uniquesocket.on("move",(move)=>{
         try{
-            console.log("Received move:", move, "from player:", uniquesocket.id);
-            console.log("Current turn:", chess.turn(), "White player:", players.white, "Black player:", players.black);
+            const { roomId } = move;
+            const room = roomId ? rooms[roomId] : null;
+            if (!room) { return; }
+
+            console.log("Received move:", move, "in room:", roomId, "from:", uniquesocket.id);
+            console.log("Current turn:", room.chess.turn(), "White:", room.players.white, "Black:", room.players.black);
             
-            if(chess.turn()=== 'w' && uniquesocket.id !== players.white) {
+            if(room.chess.turn()=== 'w' && uniquesocket.id !== room.players.white) {
                 console.log("Not white player's turn");
                 return;
             }
-            if(chess.turn() === 'b' && uniquesocket.id !== players.black) {
+            if(room.chess.turn() === 'b' && uniquesocket.id !== room.players.black) {
                 console.log("Not black player's turn");
                 return;
             }
 
-            const result = chess.move(move);
+            const result = room.chess.move({ from: move.from, to: move.to, promotion: move.promotion });
             if(result){
-                CurrentPlayer = chess.turn();
-                console.log("Move successful, broadcasting to all players");
-                io.emit("move",move);
-                io.emit("boardState",chess.fen());
+                console.log("Move successful, broadcasting to room", roomId);
+                io.to(roomId).emit("move", { from: move.from, to: move.to, promotion: move.promotion });
+                io.to(roomId).emit("boardState", room.chess.fen());
             }else{
                 console.log("invalid move:", move);
                 uniquesocket.emit("invalid move",move)

@@ -6,13 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Game</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="/css/mobile.css">
     <style>
         .chessboard {
             display: grid;
             grid-template-columns: repeat(8, minmax(0, 1fr));
             grid-template-rows: repeat(8, minmax(0, 1fr));
-            width: 600px;
-            height: 600px;
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            aspect-ratio: 1;
             transform: rotate(0deg);
         }   
         .piece.white {
@@ -29,6 +32,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
         .square.light {
             background-color: #f0d9b5;
@@ -37,11 +41,17 @@
             background-color: #b58863;
         }
         .piece {
-            font-size: 54px;
+            font-size: clamp(24px, 8vw, 54px);
             cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
         .piece.draggable {
             cursor: grab;
+        }
+        .piece.draggable:active {
+            cursor: grabbing;
         }
         .dragging {
             opacity: 0.5;
@@ -49,18 +59,37 @@
         .flipped .piece {
             transform: rotate(180deg);
         }
+        .selected {
+            background-color: rgba(255, 255, 0, 0.5) !important;
+        }
+        .valid-move {
+            position: relative;
+        }
+        .valid-move::after {
+            content: '';
+            position: absolute;
+            width: 25%;
+            height: 25%;
+            background-color: rgba(0, 255, 0, 0.5);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
         .status-message {
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
-            padding: 8px 16px;
+            padding: 6px 10px;
             border-radius: 6px;
             font-weight: 500;
-            font-size: 14px;
+            font-size: 12px;
             animation: fadeInOut 3s ease-in-out;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: 90vw;
+            text-align: center;
         }
         @keyframes fadeInOut {
             0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
@@ -73,6 +102,10 @@
             top: 20px;
             left: 20px;
             z-index: 1000;
+        }
+        .back-button button {
+            font-size: 14px;
+            padding: 8px 12px;
         }
         /* THEME STYLES */
         .theme-default {
@@ -102,12 +135,12 @@
             color: #fff;
             border: none;
             border-radius: 50%;
-            width: 48px;
-            height: 48px;
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.7rem;
+            font-size: 1.2rem;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             cursor: pointer;
             transition: background 0.2s;
@@ -117,7 +150,7 @@
         }
         .theme-dropdown {
             position: fixed;
-            top: 75px;
+            top: 70px;
             right: 20px;
             z-index: 1002;
             background: #222;
@@ -125,7 +158,7 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             padding: 0.5rem 0;
-            min-width: 140px;
+            min-width: 120px;
             display: none;
         }
         .theme-dropdown.active {
@@ -138,20 +171,83 @@
             width: 100%;
             text-align: left;
             padding: 0.5rem 1rem;
-            font-size: 1rem;
+            font-size: 0.9rem;
             cursor: pointer;
             transition: background 0.2s;
         }
         .theme-dropdown button:hover {
             background: #333;
         }
+        
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .back-button {
+                top: 10px;
+                left: 10px;
+            }
+            .theme-btn {
+                top: 10px;
+                right: 10px;
+                width: 36px;
+                height: 36px;
+                font-size: 1rem;
+            }
+            .theme-dropdown {
+                top: 55px;
+                right: 10px;
+            }
+            .status-message { top: 10px; }
+        }
+        
+        /* Touch-friendly interactions */
+        @media (hover: none) and (pointer: coarse) {
+            .piece {
+                cursor: default;
+            }
+            .piece.draggable {
+                cursor: default;
+            }
+        }
+        
+        /* Prevent zoom on double tap */
+        @media (max-width: 768px) {
+            * {
+                touch-action: manipulation;
+            }
+        }
+        
+        /* Better mobile layout */
+        @media (max-width: 480px) {
+            .chessboard {
+                max-width: 100vw;
+                margin: 0 auto;
+            }
+            
+            .back-button {
+                top: 5px;
+                left: 5px;
+            }
+            
+            .theme-btn {
+                top: 5px;
+                right: 5px;
+            }
+            
+            .status-message {
+                top: 5px;
+                left: 5px;
+                right: 5px;
+                transform: none;
+                max-width: none;
+            }
+        }
     </style>
 </head>
 
 <body>
     <div class="back-button">
-        <button onclick="goBack()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors">
-            ← Back to Menu
+        <button onclick="goBack()" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg transition-colors text-sm">
+            ← Back
         </button>
     </div>
     <!-- THEME BUTTON -->
@@ -159,28 +255,36 @@
         <span>🎨</span>
     </button>
     <div class="theme-dropdown" id="themeDropdown">
-        <button onclick="setTheme('Default')">Default</button>
+        <button onclick="setTheme('Default')">Old School</button>
         <button onclick="setTheme('scifi')">Sci-Fi</button>
         <button onclick="setTheme('matrix')">Matrix</button>
     </div>
-    <div id="mainBg" class="w-full h-screen flex items-center justify-center bg-zinc-900 theme-default">
-        <div class="text-center">
+    <div id="mainBg" class="w-full min-h-screen flex items-center justify-center bg-zinc-900 theme-default p-4">
+        <div class="text-center w-full max-w-2xl">
             <div id="statusMessage" class="status-message hidden"></div>
+            <div id="inviteBar" class="hidden mb-3 flex items-center justify-between bg-gray-800/80 text-white px-3 py-2 rounded">
+                <span id="inviteText" class="text-sm truncate"></span>
+                <button id="copyInvite" class="ml-2 bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded">Copy</button>
+            </div>
+            <div id="inviteActions" class="hidden mb-3 flex items-center justify-center gap-2">
+                <button id="acceptInvite" class="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded">Accept Invite</button>
+                <button id="declineInvite" class="bg-gray-600 hover:bg-gray-700 text-white text-sm px-3 py-1 rounded">Decline</button>
+            </div>
             <div id="gameContainer" class="hidden">
-                <div class="chessboard w-[600px] h-[600px] bg-red-800"></div>
+                <div class="chessboard mx-auto bg-red-800 rounded-lg shadow-lg"></div>
             </div>
             <div id="waitingMessage" class="hidden">
                 <div class="text-center">
-                    <div class="text-6xl mb-4">⏳</div>
-                    <h2 class="text-3xl font-bold text-white mb-4">Waiting for Opponent</h2>
-                    <p class="text-xl text-gray-300">Please wait for another player to join the game...</p>
+                    <div class="text-4xl md:text-6xl mb-4">⏳</div>
+                    <h2 class="text-2xl md:text-3xl font-bold text-white mb-4">Waiting for Opponent</h2>
+                    <p class="text-lg md:text-xl text-gray-300 px-4">Please wait for another player to join the game...</p>
                 </div>
             </div>
             <div id="noGameMessage" class="hidden">
                 <div class="text-center">
-                    <div class="text-6xl mb-4">🏁</div>
-                    <h2 class="text-3xl font-bold text-white mb-4">No Active Games</h2>
-                    <p class="text-xl text-gray-300">There are currently no games to spectate.</p>
+                    <div class="text-4xl md:text-6xl mb-4">🏁</div>
+                    <h2 class="text-2xl md:text-3xl font-bold text-white mb-4">No Active Games</h2>
+                    <p class="text-lg md:text-xl text-gray-300 px-4">There are currently no games to spectate.</p>
                 </div>
             </div>
         </div>
@@ -193,6 +297,7 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const role = urlParams.get('role');
+        const roomId = urlParams.get('roomId');
         function goBack() {
             window.location.href = '/';
         }
@@ -223,7 +328,7 @@
         function showStatusMessage(message, type = 'info') {
             const statusDiv = document.getElementById('statusMessage');
             statusDiv.textContent = message;
-            statusDiv.className = `status-message ${type === 'error' ? 'bg-red-500' : 'bg-blue-400'} text-white`;
+            statusDiv.className = `status-message ${type === 'error' ? 'bg-red-500' : 'bg-gray-500'} text-white`;
             statusDiv.classList.remove('hidden');
             setTimeout(() => {
                 statusDiv.classList.add('hidden');
@@ -244,20 +349,75 @@
             document.getElementById('noGameMessage').classList.add('hidden');
             document.getElementById('gameContainer').classList.remove('hidden');
         }
+        // Invite helpers
+        function showInviteLink(id) {
+            const bar = document.getElementById('inviteBar');
+            const text = document.getElementById('inviteText');
+            const btn = document.getElementById('copyInvite');
+            const link = `${location.origin}/game?role=player&roomId=${id}`;
+            text.textContent = link;
+            bar.classList.remove('hidden');
+            btn.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(link);
+                    showStatusMessage('Copied invite link', 'info');
+                    // Hide the bar after copying
+                    bar.classList.add('hidden');
+                } catch {}
+            };
+        }
+
+        function showInviteActions(id) {
+            const actions = document.getElementById('inviteActions');
+            actions.classList.remove('hidden');
+            document.getElementById('acceptInvite').onclick = () => {
+                socket.emit('joinRoom', { roomId: id, as: 'player' });
+                actions.classList.add('hidden');
+            };
+            document.getElementById('declineInvite').onclick = () => {
+                window.location.href = '/';
+            };
+        }
+
         // Make functions globally available
         window.showStatusMessage = showStatusMessage;
         window.showWaitingMessage = showWaitingMessage;
         window.showNoGameMessage = showNoGameMessage;
         window.showGame = showGame;
         // Initialize based on role
-        if (role === 'player') {
+        // Room-based flow
+        if (role === 'host') {
+            showGame();
+            socket.emit('joinRoom', { roomId, as: 'host' });
+            // If no roomId (legacy deep-link), server will create and reply
+        } else if (role === 'player' && roomId) {
+            showGame();
+            socket.emit('joinRoom', { roomId, as: 'player' });
+        } else if (role === 'player' && !roomId) {
             showWaitingMessage();
-            showStatusMessage('Joining as player...', 'info');
-            socket.emit('joinAsPlayer');
+            showStatusMessage('Finding random opponent...', 'info');
+            // Reuse old behavior by joining a shared room-less queue using host-less mode
+            socket.emit('joinRoom', { roomId: 'random', as: 'player' });
         } else if (role === 'spectator') {
             showStatusMessage('Joining as spectator...', 'info');
-            socket.emit('joinAsSpectator');
+            socket.emit('joinRoom', { roomId, as: 'spectator' });
         }
+
+        // Server responses
+        socket.on('joinedRoom', ({ roomId }) => {
+            if (role === 'host') {
+                history.replaceState({}, '', `/game?role=host&roomId=${roomId}`);
+                showInviteLink(roomId);
+            }
+            if (role === 'player' && roomId && !new URLSearchParams(location.search).get('roomId')) {
+                // Random match assigned a room; update URL
+                history.replaceState({}, '', `/game?role=player&roomId=${roomId}`);
+            }
+            if (role !== 'host' && role !== 'player' && roomId) {
+                // If a spectator came via invite, allow accepting
+                showInviteActions(roomId);
+            }
+        });
     </script>
 </body>
 

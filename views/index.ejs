@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Game - Welcome</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="/css/mobile.css">
     <style>
         .bg-zinc-900 {
             background-image: url('/assets/29685.jpg'); 
@@ -22,41 +23,62 @@
             transform: translateY(-5px);
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
         }
+        
+        .choice-card:active {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
         .text-shadow {
             text-shadow: 3px 3px 8px rgb(0, 0, 0); /* Soft black shadow */
+        }
+        
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            .choice-card:hover {
+                transform: none;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="w-full h-screen flex items-center justify-center bg-zinc-900">
-        <div class="text-center">
-            <h1 class="text-6xl font-bold text-white mb-8 text-shadow">♔ Chess Game ♔</h1>
-            <p class="text-xl text-white font-bold mb-16 text-shadow">Choose how you want to join the game</p>
+    <div class="w-full min-h-screen flex items-center justify-center bg-zinc-900 p-4">
+        <div class="text-center w-full max-w-md">
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-6 md:mb-8 text-shadow">♔ Chess Game ♔</h1>
+            <p class="text-lg md:text-xl text-white font-bold mb-12 md:mb-16 text-shadow px-4">Choose how you want to play</p>
 
-            <div class="flex gap-8 justify-center">
-                <div class="choice-card bg-gray-800 p-8 rounded-lg cursor-pointer w-64 h-48 flex flex-col items-center justify-center" onclick="joinAsPlayer()">
-                    <div class="text-6xl mb-4"></div>
-                    <h2 class="text-2xl font-bold text-white mb-2">Join as Player</h2>
-                    <p class="text-purple-100 text-center">Play chess against another player</p>
+            <div class="flex flex-col md:flex-row gap-6 md:gap-8 justify-center items-center">
+                <div class="choice-card bg-gray-800 p-6 md:p-8 rounded-lg cursor-pointer w-full max-w-64 h-40 md:h-48 flex flex-col items-center justify-center shadow-lg" onclick="playWithRandom()">
+                    <div class="text-4xl md:text-6xl mb-3 md:mb-4"></div>
+                    <h2 class="text-xl md:text-2xl font-bold text-white mb-2">Play with Random</h2>
+                    <p class="text-purple-100 text-center text-sm md:text-base">Match with a random opponent</p>
                 </div>
 
-                <div class="choice-card bg-gray-800 p-8 rounded-lg cursor-pointer w-64 h-48 flex flex-col items-center justify-center" onclick="joinAsSpectator()">
-                    <div class="text-6xl mb-4"></div>
-                    <h2 class="text-2xl font-bold text-white mb-2">Join as Spectator</h2>
-                    <p class="text-purple-100 text-center">Watch ongoing games</p>
+                <div class="choice-card bg-gray-800 p-6 md:p-8 rounded-lg cursor-pointer w-full max-w-64 h-40 md:h-48 flex flex-col items-center justify-center shadow-lg" onclick="createRoom()">
+                    <div class="text-4xl md:text-6xl mb-3 md:mb-4"></div>
+                    <h2 class="text-xl md:text-2xl font-bold text-white mb-2">Create a Room</h2>
+                    <p class="text-purple-100 text-center text-sm md:text-base">Invite a friend to join</p>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        function joinAsPlayer() {
+        function playWithRandom() {
+            // For now, reuse existing random match flow
             window.location.href = '/game?role=player';
         }
 
-        function joinAsSpectator() {
-            window.location.href = '/game?role=spectator';
+        async function createRoom() {
+            try {
+                const res = await fetch('/create-room');
+                const { roomId } = await res.json();
+                window.location.href = `/game?role=host&roomId=${roomId}`;
+            } catch (e) {
+                alert('Failed to create room.');
+            }
         }
     </script>
 </body>
